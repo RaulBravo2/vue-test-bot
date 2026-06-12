@@ -1,0 +1,15 @@
+# Build sin Docker: buildpack Nixpacks de Railway.
+# El lockfile commiteado es yarn.lock (package-lock.json está en .gitignore),
+# así que usamos yarn. Pinéa Node 20 (Vite 6 / vue-tsc requieren Node 18+).
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "yarn"]
+
+[phases.install]
+cmds = ["yarn install --frozen-lockfile"]
+
+[phases.build]
+cmds = ["yarn build"]
+
+[start]
+cmd = "yarn start"

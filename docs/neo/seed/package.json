@@ -1,0 +1,13 @@
+{
+  "name": "neo-seed-mongo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Seed de datos sintéticos para previews efímeros de Neo. Copiar al repo de la API.",
+  "type": "commonjs",
+  "scripts": {
+    "seed": "node seed-mongo.js"
+  },
+  "dependencies": {
+    "mongodb": "^6.5.0"
+  }
+}

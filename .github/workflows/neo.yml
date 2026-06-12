@@ -73,7 +73,10 @@ jobs:
       - name: Ejecutar Neo (Claude Code)
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Auth con tu suscripción Claude (Pro/Max), no API metered.
+          # Generá el token local con `claude setup-token` y guardalo como secret
+          # CLAUDE_CODE_OAUTH_TOKEN. NO pongas además anthropic_api_key: son excluyentes.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ steps.app-token.outputs.token }}
           trigger_phrase: "@neo"
           # En modo tag (mención) dejamos prompt vacío: la action lee el comentario/issue.

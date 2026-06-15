@@ -61,9 +61,9 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          # client-id = el "Client ID" de la App (string tipo Iv23...), NO el número 4039629.
-          # Está en la página General de la App. Cargalo en el secret NEO_APP_CLIENT_ID.
-          client-id: ${{ secrets.NEO_APP_CLIENT_ID }}
+          # Usamos app-id (número 4039629, en secret NEO_APP_ID). Tira un warning de
+          # deprecación pero FUNCIONA. Migrar a client-id es opcional y solo cosmético.
+          app-id: ${{ secrets.NEO_APP_ID }}
           private-key: ${{ secrets.NEO_APP_PRIVATE_KEY }}
 
       - name: Checkout

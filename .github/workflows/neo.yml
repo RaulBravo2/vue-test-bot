@@ -79,6 +79,9 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ steps.app-token.outputs.token }}
           trigger_phrase: "@neo"
+          # Temporal: mostrar el output completo de Claude en el log para depurar el is_error.
+          # Quitar una vez que ande (el log queda visible para quien tenga acceso al repo).
+          show_full_output: true
           # En modo tag (mención) dejamos prompt vacío: la action lee el comentario/issue.
           # En modo dispatch (bot de Matrix/Jira) pasamos el pedido explícito.
           prompt: "${{ github.event_name == 'workflow_dispatch' && format('Pedido de {0} (via {1}): {2}. Implementa el cambio en una rama nueva, verifica con la verificacion minima del repo (ver CLAUDE.md) y abri un Pull Request con descripcion clara. No mergees el PR.', inputs.requester, inputs.source, inputs.request) || '' }}"

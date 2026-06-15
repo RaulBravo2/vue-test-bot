@@ -59,13 +59,13 @@ jobs:
       # Token de la GitHub App neo-bot (acotada a los repos autorizados).
       - name: Generar token de la App neo-bot
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.NEO_APP_ID }}
           private-key: ${{ secrets.NEO_APP_PRIVATE_KEY }}
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 1
           token: ${{ steps.app-token.outputs.token }}

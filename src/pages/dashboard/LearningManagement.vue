@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { RouterLink } from "vue-router";
 import Footer from "@/components/Footer.vue";
+import Icon from "@/components/Icon.vue";
+import { Button } from "@/components/ui/button";
 import Result from "@/sections/learning-management/result";
 import IntroCard from "@/sections/learning-management/intro";
 import StatusList from "@/sections/learning-management/status";
@@ -11,7 +14,16 @@ import StudyTimeLastWeek from "@/sections/learning-management/study-time";
 </script>
 
 <template>
-  <div class="grid grid-cols-12 mt-2 mb-6 gap-7">
+  <div class="flex flex-col justify-between gap-4 mt-2 md:flex-row md:items-center">
+    <h4>Learning Dashboard</h4>
+
+    <Button :as="RouterLink" to="/users/create">
+      <Icon name="Plus" :strokeWidth="2" :size="18" class="me-2" />
+      Nuevo Cliente
+    </Button>
+  </div>
+
+  <div class="grid grid-cols-12 mt-6 mb-6 gap-7">
     <!-- Intro Overview Card -->
     <IntroCard />
 

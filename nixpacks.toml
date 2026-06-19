@@ -11,5 +11,7 @@ cmds = ["yarn install --frozen-lockfile"]
 [phases.build]
 cmds = ["yarn build"]
 
+# Servir la SPA estática (dist/) en $PORT con fallback de rutas (-s).
+# `yarn start` (= vite preview) escucha en localhost:4173 e ignora $PORT → falla el healthcheck.
 [start]
-cmd = "yarn start"
+cmd = "npx -y serve -s dist -l $PORT"

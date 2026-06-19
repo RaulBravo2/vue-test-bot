@@ -5,7 +5,7 @@
     "buildCommand": "yarn build"
   },
   "deploy": {
-    "startCommand": "yarn start",
+    "startCommand": "npx -y serve -s dist -l $PORT",
     "healthcheckPath": "/",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",

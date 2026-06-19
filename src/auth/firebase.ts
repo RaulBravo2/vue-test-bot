@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, type Auth } from "firebase/auth";
 
 // FIREBASE CONFIGURATION FROM FIREBASE CONSOLE
 const firebaseConfig = {
@@ -11,10 +11,12 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// INITIALIZE FIREBASE APP
-const firebaseApp = initializeApp(firebaseConfig);
-
-// INITIALIZE FIREBASE AUTHENTICATION AND GET REFERENCE TO THE SERVICE
-const auth = getAuth(firebaseApp);
+// Sin VITE_FIREBASE_API_KEY (p. ej. en un preview/demo de Railway), getAuth() lanza
+// "auth/invalid-api-key" al importar el módulo y la app no llega a montar (pantalla en
+// blanco). Para que el preview renderice igual, solo inicializamos Firebase si hay API
+// key; si no, `auth` queda en null y useAuth degrada a "no autenticado".
+const auth: Auth | null = import.meta.env.VITE_FIREBASE_API_KEY
+  ? getAuth(initializeApp(firebaseConfig))
+  : null;
 
 export { auth };

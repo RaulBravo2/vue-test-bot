@@ -35,6 +35,17 @@ interface AuthState {
 
 let authReadyCallback: ((user: User | null) => void) | null = null;
 
+// Las operaciones de auth requieren Firebase configurado. Si `auth` es null (sin
+// VITE_FIREBASE_*), lanzamos un error claro en vez de un crash poco descriptivo.
+const ensureAuth = (): NonNullable<typeof auth> => {
+  if (!auth) {
+    throw new Error(
+      "Firebase no está configurado: definí las variables VITE_FIREBASE_* para usar el login."
+    );
+  }
+  return auth;
+};
+
 export const useAuth = () => {
   const state = reactive<AuthState>({
     user: null,
@@ -43,26 +54,33 @@ export const useAuth = () => {
   });
 
   // WATCH FOR AUTHENTICATION STATE CHANGES
-  onAuthStateChanged(
-    auth,
-    (currentUser) => {
-      state.user = currentUser;
-      state.loading = false;
-      if (authReadyCallback) authReadyCallback(currentUser);
-    },
-    (error) => {
-      state.error = error;
-      state.loading = false;
-    }
-  );
+  if (auth) {
+    onAuthStateChanged(
+      auth,
+      (currentUser) => {
+        state.user = currentUser;
+        state.loading = false;
+        if (authReadyCallback) authReadyCallback(currentUser);
+      },
+      (error) => {
+        state.error = error;
+        state.loading = false;
+      }
+    );
+  } else {
+    // Firebase no configurado (preview/demo sin VITE_FIREBASE_*): no hay sesión posible.
+    state.loading = false;
+    if (authReadyCallback) authReadyCallback(null);
+  }
 
   const login = async ({ email, password, rememberMe }: LoginData) => {
     try {
       state.loading = true;
       state.error = null;
 
-      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-      return await signInWithEmailAndPassword(auth, email, password);
+      const a = ensureAuth();
+      await setPersistence(a, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      return await signInWithEmailAndPassword(a, email, password);
     } catch (error) {
       state.error = error as Error;
       throw error;
@@ -76,7 +94,7 @@ export const useAuth = () => {
       state.loading = true;
       state.error = null;
 
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(ensureAuth(), email, password);
       await updateProfile(userCredential.user, { displayName: name });
       return userCredential;
     } catch (error) {
@@ -92,7 +110,7 @@ export const useAuth = () => {
       state.loading = true;
       state.error = null;
 
-      await signOut(auth);
+      await signOut(ensureAuth());
     } catch (error) {
       state.error = error as Error;
       throw error;
@@ -103,6 +121,11 @@ export const useAuth = () => {
 
   const waitForAuth = () => {
     return new Promise((resolve) => {
+      // Sin Firebase no hay sesión que esperar: resolver ya para no bloquear el router.
+      if (!auth) {
+        resolve(null);
+        return;
+      }
       if (state.user) {
         resolve(state.user);
       } else {

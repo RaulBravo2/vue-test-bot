@@ -30,7 +30,7 @@ const chartOptions = useApexChartOptions({
     <CardContent
       class="flex flex-col-reverse items-center justify-between h-full gap-4 px-6 py-6 text-center sm:flex-row sm:text-left sm:py-2">
       <div class="flex-1 rtl:text-right">
-        <h5 class="mb-2">Welcome Back! Watson</h5>
+        <h5 class="mb-2">HOLA SOY NEO Y ESTO ES UN TEST</h5>
         <p class="text-muted md:max-w-80">
           You have completed
           <span class="text-base font-medium text-primary">76%</span>

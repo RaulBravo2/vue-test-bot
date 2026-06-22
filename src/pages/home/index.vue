@@ -4,6 +4,7 @@ import Banner from "@/sections/home/Banner.vue";
 import Contact from "@/sections/home/Contact.vue";
 import DemoTemplates from "@/sections/home/DemoTemplates.vue";
 import Features from "@/sections/home/features/Features.vue";
+import CatMascot from "@/components/CatMascot.vue";
 </script>
 
 <template>
@@ -15,4 +16,6 @@ import Features from "@/sections/home/features/Features.vue";
     <Features />
     <Contact />
   </main>
+
+  <CatMascot />
 </template>

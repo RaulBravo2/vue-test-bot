@@ -56,6 +56,7 @@
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-collapsible-down: collapsible-down 0.2s ease-in-out;
   --animate-collapsible-up: collapsible-up 0.2s ease-in-out;
+  --animate-cat-bounce: cat-bounce 1.6s ease-in-out infinite;
 
   @keyframes accordion-down {
     from {
@@ -90,6 +91,16 @@
     }
     to {
       height: 0;
+    }
+  }
+
+  @keyframes cat-bounce {
+    0%,
+    100% {
+      transform: translateY(0) rotate(-4deg);
+    }
+    50% {
+      transform: translateY(-10px) rotate(4deg);
     }
   }
 }

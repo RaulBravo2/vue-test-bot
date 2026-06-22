@@ -15,7 +15,8 @@ export const users = [
     status: "Verified",
     address: "United Kingdom",
     createAt: "4/02/2023",
-    phone: "853 565 9802"
+    phone: "853 565 9802",
+    age: 34
   },
   {
     id: 2,
@@ -26,7 +27,8 @@ export const users = [
     status: "Verified",
     address: "United States",
     createAt: "10/15/2022",
-    phone: "783 456 7890"
+    phone: "783 456 7890",
+    age: 29
   },
   {
     id: 3,
@@ -37,7 +39,8 @@ export const users = [
     status: "Hidden",
     address: "Canada",
     createAt: "01/20/2023",
-    phone: "987 654 3210"
+    phone: "987 654 3210",
+    age: 41
   },
   {
     id: 4,
@@ -48,7 +51,8 @@ export const users = [
     status: "Verified",
     address: "Australia",
     createAt: "05/08/2023",
-    phone: "555 123 4567"
+    phone: "555 123 4567",
+    age: 37
   },
   {
     id: 5,
@@ -59,7 +63,8 @@ export const users = [
     status: "Rejected",
     address: "Germany",
     createAt: "02/14/2023",
-    phone: "812 345 6789"
+    phone: "812 345 6789",
+    age: 26
   },
   {
     id: 6,
@@ -70,7 +75,8 @@ export const users = [
     status: "Verified",
     address: "France",
     createAt: "06/22/2023",
-    phone: "777 888 9990"
+    phone: "777 888 9990",
+    age: 45
   },
   {
     id: 7,
@@ -81,7 +87,8 @@ export const users = [
     status: "Waiting",
     address: "Italy",
     createAt: "07/05/2023",
-    phone: "444 555 6660"
+    phone: "444 555 6660",
+    age: 23
   },
   {
     id: 8,
@@ -92,7 +99,8 @@ export const users = [
     status: "Verified",
     address: "Spain",
     createAt: "08/18/2023",
-    phone: "333 444 5550"
+    phone: "333 444 5550",
+    age: 31
   },
   {
     id: 9,
@@ -103,7 +111,8 @@ export const users = [
     status: "Waiting",
     address: "Japan",
     createAt: "09/29/2023",
-    phone: "222 333 4440"
+    phone: "222 333 4440",
+    age: 28
   },
   {
     id: 10,
@@ -114,7 +123,8 @@ export const users = [
     status: "Verified",
     address: "China",
     createAt: "10/12/2023",
-    phone: "912 222 3330"
+    phone: "912 222 3330",
+    age: 39
   },
   {
     id: 11,
@@ -125,7 +135,8 @@ export const users = [
     status: "Waiting",
     address: "Brazil",
     createAt: "11/15/2023",
-    phone: "000 111 2220"
+    phone: "000 111 2220",
+    age: 24
   },
   {
     id: 12,
@@ -136,7 +147,8 @@ export const users = [
     status: "Verified",
     address: "Russia",
     createAt: "12/28/2023",
-    phone: "999 000 1110"
+    phone: "999 000 1110",
+    age: 48
   },
   {
     id: 13,
@@ -147,7 +159,8 @@ export const users = [
     status: "Waiting",
     address: "India",
     createAt: "01/05/2024",
-    phone: "888 777 6660"
+    phone: "888 777 6660",
+    age: 27
   },
   {
     id: 14,
@@ -158,6 +171,7 @@ export const users = [
     status: "Verified",
     address: "Mexico",
     createAt: "2/18/2024",
-    phone: "555 444 3330"
+    phone: "555 444 3330",
+    age: 33
   }
 ];

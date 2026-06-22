@@ -8,6 +8,7 @@ export interface User {
   status: string;
   address: string;
   createAt: string;
+  age: number;
 }
 
 export interface UserPayload {
@@ -18,4 +19,5 @@ export interface UserPayload {
   phone: string;
   status: string;
   address: string;
+  age: number;
 }

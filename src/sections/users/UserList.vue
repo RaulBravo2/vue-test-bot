@@ -46,6 +46,7 @@ const getBadgeVariant = (status: string): BadgeVariants["variant"] => {
 const tableHeads = [
   "User ID",
   "Name",
+  "Age",
   "Location",
   "Email",
   "Phone Number",
@@ -74,7 +75,7 @@ const tableHeads = [
 
           <!-- NOT FOUND USER MESSAGE -->
           <TableRow v-else-if="!isLoading && users.length === 0">
-            <TableCell colspan="8" class="py-24 m-4 text-center bg-slate-200/20">
+            <TableCell colspan="9" class="py-24 m-4 text-center bg-slate-200/20">
               <p class="mb-4 text-2xl">No users found for '{{ filters.search }}'</p>
               <Button variant="outline" class="rounded-full" @click="resetFilter()">
                 Clear your search and try again
@@ -104,6 +105,7 @@ const tableHeads = [
               </div>
             </TableCell>
 
+            <TableCell>{{ user.age }}</TableCell>
             <TableCell>{{ user.address }}</TableCell>
             <TableCell>{{ user.email }}</TableCell>
             <TableCell>{{ formatPhoneNumber(user.phone) }}</TableCell>

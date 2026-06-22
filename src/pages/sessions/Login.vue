@@ -47,7 +47,7 @@ const onSubmit = handleSubmit(async (values) => {
 
 <template>
   <div class="grid min-h-screen lg:grid-cols-2 bg-primary">
-    <div class="hidden items-center p-20 text-white lg:flex xl:px-40">
+    <div class="hidden relative items-center p-20 text-white lg:flex xl:px-40">
       <div>
         <img src="/logos/uko.png" class="mb-10 h-10" alt="Uko" />
         <h4 class="mb-7 text-4xl font-bold">Hi, Welcome Back!</h4>
@@ -58,6 +58,10 @@ const onSubmit = handleSubmit(async (values) => {
           application development.
         </p>
       </div>
+      <img
+        src="/images/condorito.png"
+        alt="Condorito"
+        class="absolute right-10 bottom-10 w-20 h-20 opacity-90 pointer-events-none" />
     </div>
 
     <div

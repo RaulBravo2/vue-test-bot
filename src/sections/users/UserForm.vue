@@ -26,7 +26,13 @@ const validationSchema = yup.object({
   address: yup.string().required("Address is required"),
   phone: yup.string().required("Phone is required"),
   image: yup.mixed().nullable().required("Image is required"),
-  email: yup.string().required("Email is required").email("Invalid email")
+  email: yup.string().required("Email is required").email("Invalid email"),
+  age: yup
+    .number()
+    .typeError("Age must be a number")
+    .integer("Age must be an integer")
+    .positive("Age must be positive")
+    .required("Age is required")
 });
 
 const { handleSubmit, isSubmitting } = useForm({
@@ -38,7 +44,8 @@ const { handleSubmit, isSubmitting } = useForm({
     phone: user?.phone || "",
     image: user?.image || null,
     status: user?.status || "",
-    address: user?.address || ""
+    address: user?.address || "",
+    age: user?.age || null
   }
 });
 
@@ -51,7 +58,8 @@ const onSubmit = handleSubmit((values, { resetForm }) => {
     phone: values.phone,
     image: values.image!,
     status: values.status,
-    address: values.address
+    address: values.address,
+    age: values.age!
   };
 
   if (user) {
@@ -84,6 +92,8 @@ const onSubmit = handleSubmit((values, { resetForm }) => {
           placeholder="example@domain.com" />
 
         <TextField id="phone" name="phone" label="Phone Number" placeholder="0123456789" />
+
+        <TextField id="age" type="number" name="age" label="Age" placeholder="30" />
 
         <SelectField id="status" name="status" label="Status" placeholder="Select a status">
           <SelectItem value="Hidden">Hidden</SelectItem>

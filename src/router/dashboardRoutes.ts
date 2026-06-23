@@ -30,5 +30,11 @@ export const dashboardRoutes: RouteRecordRaw[] = [
     path: "/saas",
     component: () => import("@/pages/dashboard/Saas.vue"),
     meta: { title: "Saas" }
+  },
+  {
+    name: "dashboardContact",
+    path: "/contact-us",
+    component: () => import("@/pages/dashboard/Contact.vue"),
+    meta: { title: "Contact Us" }
   }
 ];

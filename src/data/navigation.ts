@@ -7,7 +7,8 @@ export const navigation = [
       { label: "Job Management", route: "/job-management", icon: "Target" },
       { label: "Analytics", route: "/analytics", icon: "AreaChart" },
       { label: "Sales", route: "/sales", icon: "DiamondPercent" },
-      { label: "SaaS", route: "/saas", icon: "BadgeDollarSign" }
+      { label: "SaaS", route: "/saas", icon: "BadgeDollarSign" },
+      { label: "Contact Us", route: "/contact-us", icon: "Mail" }
     ]
   },
   {

@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 <template>
   <div class="container px-4 py-20 mx-auto space-y-6 text-center">
     <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold leading-tight!">
-      Transform your development <br />
-      with Powerful <span class="text-primary">Vuejs</span> dashboard
+      Neo preview ✅
     </h2>
 
     <p class="text-base lg:text-lg text-muted">

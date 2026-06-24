@@ -30,7 +30,7 @@ const handleFullScreen = () => {
 
 <template>
   <header
-    class="sticky top-0 py-5 w-full transition-all z-12"
+    class="sticky top-0 py-5 w-full transition-all z-12 bg-green-600"
     :class="{ 'backdrop-blur-xs shadow-xs': y > 0 }">
     <div
       class="flex justify-between items-center px-4 mx-auto max-w-(--breakpoint-2xl) sm:px-7 2xl:px-20">

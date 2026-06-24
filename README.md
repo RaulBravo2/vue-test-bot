@@ -38,6 +38,18 @@ Whether you're working on a personal project or a professional web application, 
 
 Ready to elevate your project? Choose UKO and build with the best. Get the ultimate in TypeScript-powered admin dashboard templates today and experience fast, reliable, and beautiful development like never before!
 
+**Configuración / Variables de entorno**
+
+Copiá `.env.example` a `.env` y completá las credenciales de Firebase. La variable
+`VITE_API_BASE_URL` controla el origen de datos del portal (incluida la tabla de usuarios
+de `/users`):
+
+- **Vacía / sin definir:** axios usa el mock de `src/__mock__` (comportamiento por
+  defecto, no requiere backend).
+- **Con un valor** (ej. la URL de la API `api_portal_cliente` en un preview full-stack o en
+  producción): axios apunta a esa API real y la tabla de usuarios consume
+  `GET /api/users` en lugar del dataset mockeado.
+
 **License**
 
 UKO is available under a **dual-license** model:

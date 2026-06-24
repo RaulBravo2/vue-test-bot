@@ -8,6 +8,7 @@ import Icon from "@/components/Icon.vue";
 // SECTION COMPONENTS
 import UserList from "@/sections/users/UserList.vue";
 import UserStatusInput from "@/sections/users/UserStatusInput.vue";
+import UserHardcodedTable from "@/sections/users/UserHardcodedTable.vue";
 // USER STORE
 import { useUsers } from "@/stores/users";
 
@@ -46,4 +47,7 @@ const { filters } = toRefs(state);
 
   <!-- USER TABLE SECTION -->
   <UserList />
+
+  <!-- USER HARDCODED TABLE SECTION -->
+  <UserHardcodedTable />
 </template>

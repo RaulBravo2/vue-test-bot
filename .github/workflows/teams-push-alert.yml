@@ -1,0 +1,195 @@
+name: Teams — aviso de push
+
+# Publica una Adaptive Card cada vez que se empuja a `main` o `dev`.
+#
+# ── POR QUÉ VA APARTE DEL AVISO DE PR ───────────────────────────────────────
+#   `pull_request` y `push` traen cargas completamente distintas: uno tiene
+#   título, ramas y checklist; el otro una lista de commits. Meter los dos en un
+#   archivo obligaría a un `if` gigante en cada campo.
+#
+# ── AVISO DOBLE, A PROPÓSITO ────────────────────────────────────────────────
+#   Al mergear un PR llegan DOS tarjetas: la verde del PR y la de este push.
+#   Es la opción elegida — así no se escapa ningún cambio en las ramas
+#   principales. Por eso el encabezado y el icono son distintos: la duplicación
+#   tiene que leerse como intencionada, no como un fallo.
+#
+# ── SECRETS ─────────────────────────────────────────────────────────────────
+#   TEAMS_WEBHOOK_COMMITS — canal propio para los push. Es el que manda.
+#   TEAMS_WEBHOOK_URL     — respaldo: sin canal propio, se publica junto a los
+#                           avisos de PR. Sin ninguno de los dos, este workflow
+#                           avisa y sale limpio; no falla.
+#
+#   Un webhook no sabe nada del canal al que apunta: que el otro se llame "Pull
+#   Requests Alerts" es una etiqueta humana, no una regla. Por eso los push
+#   caían ahí — había un solo webhook para todo.
+
+on:
+  push:
+    branches: [main, dev]
+
+# Sin `concurrency`: cada push merece su aviso. Cancelar el anterior perdería
+# avisos cuando alguien empuja dos veces seguidas.
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Solo para pedir el diff acumulado del push.
+    permissions:
+      contents: read
+    steps:
+      - name: Postear la tarjeta en Teams
+        env:
+          # El canal de commits manda; si no existe, cae al de los PR.
+          WEBHOOK: ${{ secrets.TEAMS_WEBHOOK_COMMITS || secrets.TEAMS_WEBHOOK_URL }}
+          GH_TOKEN: ${{ github.token }}
+          # Los mensajes de commit los escribe quien empuja: van por env y de
+          # ahí a jq como datos, nunca interpolados dentro del `run`.
+          COMMITS_JSON: ${{ toJSON(github.event.commits) }}
+          RAMA: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          PUSHER: ${{ github.event.pusher.name }}
+          AVATAR: ${{ github.event.sender.avatar_url }}
+          COMPARE: ${{ github.event.compare }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          FORZADO: ${{ github.event.forced }}
+          CREADA: ${{ github.event.created }}
+          BORRADA: ${{ github.event.deleted }}
+          SERVER: ${{ github.server_url }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${WEBHOOK:-}" ]; then
+            echo "::notice::Ni TEAMS_WEBHOOK_COMMITS ni TEAMS_WEBHOOK_URL están cargados — se omite el aviso."
+            exit 0
+          fi
+
+          # Borrar una rama también es un evento push, pero sin nada que contar.
+          if [ "${BORRADA:-false}" = "true" ]; then
+            echo "::notice::Rama borrada, no hay commits que anunciar."
+            exit 0
+          fi
+
+          N=$(printf '%s' "$COMMITS_JSON" | jq 'length')
+          if [ "${N:-0}" -eq 0 ]; then
+            echo "::notice::Push sin commits (etiqueta o rama vacía); no se avisa."
+            exit 0
+          fi
+
+          # El push forzado reescribe historia: es lo único de aquí que puede
+          # perder trabajo ajeno, así que se distingue en color y encabezado.
+          if [ "${FORZADO:-false}" = "true" ]; then
+            HEADER="⚠️ Push forzado a ${RAMA}"
+            COLOR="attention"; STYLE="attention"
+          elif [ "${CREADA:-false}" = "true" ]; then
+            HEADER="🌱 Rama ${RAMA} creada"
+            COLOR="good"; STYLE="good"
+          elif [ "$N" -eq 1 ]; then
+            HEADER="📥 1 commit en ${RAMA}"
+            COLOR="accent"; STYLE="accent"
+          else
+            HEADER="📥 ${N} commits en ${RAMA}"
+            COLOR="accent"; STYLE="accent"
+          fi
+
+          # El diff acumulado no viene en el evento; hay que pedirlo. Va con
+          # `|| true`: si falla, la tarjeta sale sin esa fila en vez de perderse.
+          CAMBIOS=""
+          if [ "${CREADA:-false}" != "true" ]; then
+            CAMBIOS="$(gh api "repos/${REPO}/compare/${BEFORE}...${AFTER}" --jq '
+              "+\(.files | map(.additions) | add // 0) −\(.files | map(.deletions) | add // 0) en \(.files | length) archivo(s)"
+            ' 2>/dev/null || true)"
+          fi
+
+          jq -nc \
+            --argjson commits "$COMMITS_JSON" \
+            --arg header  "$HEADER" \
+            --arg color   "$COLOR" \
+            --arg style   "$STYLE" \
+            --arg repo    "$REPO" \
+            --arg rama    "$RAMA" \
+            --arg pusher  "$PUSHER" \
+            --arg avatar  "${AVATAR:-}" \
+            --arg cambios "$CAMBIOS" \
+            --arg compare "$COMPARE" \
+            --arg ramaurl "${SERVER}/${REPO}/tree/${RAMA}" \
+            '
+            # Solo la primera línea de cada mensaje: el cuerpo del commit puede
+            # tener veinte líneas y aquí se busca un vistazo, no el detalle.
+            ($commits | .[0:6] | map(
+                "- `" + (.id[0:7]) + "` "
+                + ((.message | split("\n") | .[0]))
+                + " — " + (.author.name // "?")
+              ) | join("\n")) as $lista
+            |
+            (if ($commits | length) > 6
+              then $lista + "\n- … y " + (($commits | length) - 6 | tostring) + " commit(s) más"
+              else $lista end) as $lista
+            |
+            {
+              type: "message",
+              attachments: [{
+                contentType: "application/vnd.microsoft.card.adaptive",
+                contentUrl: null,
+                content: {
+                  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                  type: "AdaptiveCard",
+                  version: "1.4",
+                  msteams: { width: "Full" },
+                  body: ([
+                    { type: "Container", style: $style, bleed: true, items: [
+                      { type: "ColumnSet", columns: ([
+                        (if $avatar == "" then empty else
+                          { type: "Column", width: "auto", items: [
+                            { type: "Image", url: $avatar, size: "Small",
+                              style: "Person", altText: $pusher }
+                          ] }
+                        end),
+                        { type: "Column", width: "stretch",
+                          verticalContentAlignment: "Center", items: [
+                          { type: "TextBlock", text: $header, weight: "Bolder",
+                            size: "Medium", color: $color, wrap: true,
+                            spacing: "None" },
+                          { type: "TextBlock", text: ($pusher + " · " + $repo),
+                            size: "Small", isSubtle: true, wrap: true,
+                            spacing: "None" }
+                        ] }
+                      ]) }
+                    ] },
+
+                    { type: "TextBlock", text: $lista, wrap: true,
+                      spacing: "Medium" },
+
+                    (if $cambios == "" then empty else
+                      { type: "FactSet", spacing: "Small", facts: [
+                          { title: "Cambios", value: $cambios }
+                        ] }
+                    end)
+                  ]),
+                  actions: [
+                    { type: "Action.OpenUrl", title: "Ver el diff",  url: $compare },
+                    { type: "Action.OpenUrl", title: "Ver la rama",  url: $ramaurl }
+                  ]
+                }
+              }]
+            }' > /tmp/push.json
+
+          for attempt in 1 2 3; do
+            code="$(curl -sS -o /tmp/resp.txt -w '%{http_code}' \
+              -X POST -H 'Content-Type: application/json' \
+              --max-time 20 --data-binary @/tmp/push.json "$WEBHOOK")" || code="000"
+
+            if [ "$code" -ge 200 ] 2>/dev/null && [ "$code" -lt 300 ] 2>/dev/null; then
+              echo "✅ Aviso de push enviado a Teams (HTTP $code)."
+              exit 0
+            fi
+
+            echo "::warning::Teams respondió HTTP $code (intento $attempt/3): $(head -c 300 /tmp/resp.txt 2>/dev/null)"
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 5))
+            fi
+          done
+
+          echo "::error::No se pudo avisar a Teams tras 3 intentos (último HTTP $code)."
+          exit 1

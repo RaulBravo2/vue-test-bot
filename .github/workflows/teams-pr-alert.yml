@@ -1,0 +1,380 @@
+name: Teams — aviso de Pull Request
+
+# Publica una Adaptive Card en un canal de Teams cada vez que se abre un PR.
+#
+# ── SECRET REQUERIDO ────────────────────────────────────────────────────────
+#   TEAMS_WEBHOOK_URL — URL del webhook del canal.
+#     · Teams Workflows (Power Automate, lo actual):
+#         https://prod-XX.<region>.logic.azure.com:443/workflows/...
+#     · Connector "Incoming Webhook" (legacy, en retiro):
+#         https://<org>.webhook.office.com/webhookb2/...
+#   El payload ({type:"message", attachments:[AdaptiveCard]}) sirve para los dos,
+#   así que no hay que tocar nada según cuál tengas.
+#
+#   Cargarlo en:  Settings → Secrets and variables → Actions → New repository secret
+#   Si el secret no está, el workflow no falla: avisa y sale limpio.
+#
+# ── LÍMITE CONOCIDO ─────────────────────────────────────────────────────────
+#   GitHub no expone secrets a los PR que vienen de un fork, así que esos no
+#   generan aviso. Es a propósito: con `pull_request_target` sí llegarían, pero
+#   ese disparador corre con permisos del repo base y no compensa el riesgo
+#   solo por una notificación.
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, closed]
+
+# Si se reabre y se marca listo casi a la vez, basta con el último aviso.
+concurrency:
+  group: teams-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  notify:
+    # Los borradores no avisan; ya avisará `ready_for_review`.
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Solo lectura del PR, para poder listar los archivos tocados. No escribe nada.
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Postear la tarjeta en Teams
+        env:
+          WEBHOOK: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          GH_TOKEN: ${{ github.token }}
+          # TODO lo que viene del PR pasa por env, nunca interpolado en el script:
+          # el título y la rama los controla quien abre el PR y podrían inyectar
+          # comandos si se pegaran directamente dentro del `run`.
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          ADDITIONS: ${{ github.event.pull_request.additions }}
+          DELETIONS: ${{ github.event.pull_request.deletions }}
+          FILES: ${{ github.event.pull_request.changed_files }}
+          ACTION: ${{ github.event.action }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          REPO: ${{ github.repository }}
+          # El cuerpo trae la plantilla rellenada. Es el texto MÁS hostil de todos
+          # (markdown libre, multilínea, comillas, backticks), así que con más razón
+          # va por env y termina en jq --arg.
+          PR_BODY: ${{ github.event.pull_request.body }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ', ') }}
+          AVATAR: ${{ github.event.pull_request.user.avatar_url }}
+          COMMITS: ${{ github.event.pull_request.commits }}
+          REVIEWERS: ${{ join(github.event.pull_request.requested_reviewers.*.login, ', ') }}
+          CREATED: ${{ github.event.pull_request.created_at }}
+          SENDER: ${{ github.event.sender.login }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${WEBHOOK:-}" ]; then
+            echo "::notice::TEAMS_WEBHOOK_URL no está cargado — se omite el aviso."
+            echo "ℹ️ Sin \`TEAMS_WEBHOOK_URL\`: no se avisó a Teams." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # STYLE tiñe la banda del encabezado; COLOR solo pinta el texto. Con los
+          # dos, el estado del PR se reconoce sin leer nada.
+          case "$ACTION" in
+            reopened)         HEADER="🔁 Pull Request reabierto";    COLOR="warning"; STYLE="warning" ;;
+            ready_for_review) HEADER="✅ Pull Request listo para revisión"; COLOR="good"; STYLE="good" ;;
+            closed)
+              if [ "$MERGED" = "true" ] && [ "$BASE_REF" = "main" ]; then
+                HEADER="✅ Pull Request mergeado en main"
+                COLOR="good"; STYLE="good"
+              elif [ "$MERGED" = "true" ]; then
+                HEADER="✅ Pull Request mergeado"
+                COLOR="good"; STYLE="good"
+              else
+                HEADER="🚫 Pull Request cerrado sin mergear"
+                COLOR="attention"; STYLE="attention"
+              fi
+              ;;
+            *)                HEADER="🔀 Nuevo Pull Request";        COLOR="accent"; STYLE="accent" ;;
+          esac
+
+          RAMAS="${HEAD_REF} → ${BASE_REF}"
+
+          # {{DATE}}/{{TIME}} los resuelve Teams en la zona horaria de quien lee,
+          # así que no hay que decidir aquí si el canal es de Chile o de España.
+          SUBTITULO="${PR_AUTHOR} · #${PR_NUMBER} · {{DATE(${CREATED}, SHORT)}} {{TIME(${CREATED})}}"
+          if [ "$ACTION" = "closed" ] && [ -n "${SENDER:-}" ] && [ "$SENDER" != "$PR_AUTHOR" ]; then
+            SUBTITULO="${SUBTITULO} · cerrado por ${SENDER}"
+          fi
+
+          # Etiqueta de tamaño: dice de un vistazo cuánto rato pide la revisión,
+          # que es lo que uno quiere saber antes de abrir el PR.
+          TOTAL=$(( ADDITIONS + DELETIONS ))
+          if   [ "$TOTAL" -le 10  ]; then TAMANO="XS"
+          elif [ "$TOTAL" -le 50  ]; then TAMANO="S"
+          elif [ "$TOTAL" -le 200 ]; then TAMANO="M"
+          elif [ "$TOTAL" -le 800 ]; then TAMANO="L"
+          else                            TAMANO="XL"
+          fi
+          TAMANO="${TAMANO} · ${TOTAL} líneas"
+
+          # ── Leer la plantilla del PR ──────────────────────────────────────
+          # Una Adaptive Card no renderiza encabezados `##` ni casillas `- [x]`:
+          # volcar el cuerpo entero se ve como texto plano roto. Así que se
+          # extraen solo las tres cosas que se leen de un vistazo en el canal.
+          BODY=/tmp/pr-body.md
+          # perl -0 slurpea el archivo: los comentarios <!-- --> de la plantilla
+          # son multilínea y un sed por líneas no los alcanza.
+          printf '%s' "${PR_BODY:-}" | tr -d '\r' | perl -0pe 's/<!--.*?-->//gs' > "$BODY"
+
+          # Imprime el contenido de una sección `## Nombre` hasta el próximo `##`.
+          seccion() {
+            awk -v want="$1" '
+              /^#{2,}[[:space:]]/ {
+                h = $0
+                sub(/^#{2,}[[:space:]]*/, "", h); sub(/[[:space:]]+$/, "", h)
+                dentro = (h == want)
+                next
+              }
+              dentro { print }
+            ' "$BODY"
+          }
+
+          # Casillas marcadas de una sección, en una línea.
+          marcadas() {
+            seccion "$1" | sed -nE 's/^[[:space:]]*[-*][[:space:]]*\[[xX]\][[:space:]]*//p' \
+              | paste -sd', ' -
+          }
+
+          # Aplana un bloque a una línea y lo recorta. cut -c corta por caracteres,
+          # pero si el locale no es UTF-8 corta por bytes y puede partir una tilde
+          # a la mitad; iconv -c descarta lo que quede roto.
+          una_linea() {
+            tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//' \
+              | cut -c1-"$1" | iconv -c -f UTF-8 -t UTF-8
+          }
+
+          RESUMEN="$(seccion "Summary" | una_linea 400)"
+          if [ -z "$RESUMEN" ]; then
+            RESUMEN="$(seccion "Description" | una_linea 400)"
+          fi
+          if [ -z "$RESUMEN" ]; then
+            # Sin plantilla: el primer párrafo de verdad del cuerpo. Antes estos PR
+            # llegaban al canal sin una sola línea de contexto.
+            RESUMEN="$(awk '
+              /^#{1,6}[[:space:]]/                      { next }   # encabezados
+              /^[[:space:]]*[-*][[:space:]]*\[[ xX]\]/  { next }   # casillas
+              /^[[:space:]]*$/  { if (visto) exit; next }
+                                { visto = 1; print }
+            ' "$BODY" | una_linea 400)"
+          fi
+
+          # El "qué hice" de la plantilla. Va aparte y como lista: metido dentro
+          # del resumen se pierde, y es lo que de verdad se quiere ojear.
+          CAMBIOS="$(seccion "Changes" \
+            | sed -nE 's/^[[:space:]]*[-*][[:space:]]+(.+)$/\1/p' \
+            | awk '
+                NR <= 5 { printf "- %s\n", $0 }
+                END     { if (NR > 5) printf "- … y %d punto(s) más\n", NR - 5 }' \
+            | iconv -c -f UTF-8 -t UTF-8)"
+
+          # if/then y no `[ ... ] && ...`: el shell de Actions corre con `-e` y una
+          # AND-list que da falso en el último comando aborta el paso entero.
+          TIPO="$(marcadas "Type of Change")"
+          if [ -z "$TIPO" ]; then
+            TIPO="$(marcadas "Severity")"   # plantilla de hotfix
+          fi
+
+          CHECKLIST="$(seccion "Checklist" | awk '
+            /^[[:space:]]*[-*][[:space:]]*\[[ xX]\]/ {
+              t++
+              if ($0 ~ /\[[xX]\]/) d++
+            }
+            END { if (t > 0) printf "%d/%d %s", d+0, t, (d+0 == t ? "✅" : "⏳") }')"
+
+          # El resumen ya no sirve para detectarlo: con el respaldo del primer
+          # párrafo, casi siempre trae algo.
+          if [ -z "$TIPO" ] && [ -z "$CHECKLIST" ] && [ -z "$CAMBIOS" ]; then
+            echo "::notice::El PR no trae la plantilla rellenada; la tarjeta sale sin esos campos."
+          fi
+
+          # ── Archivos tocados ──────────────────────────────────────────────
+          # El evento trae el número de archivos pero no cuáles; hay que pedirlos.
+          # Es lo único que necesita la API, así que va con `|| true`: si falla,
+          # la tarjeta sale igual sin esta sección en vez de perderse el aviso.
+          ARCHIVOS=""
+          CRUDO="$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100" \
+            --jq '.[] | "\(.additions)\t\(.deletions)\t\(.filename)"' 2>/dev/null || true)"
+
+          if [ -n "$CRUDO" ]; then
+            # Ordenados por líneas tocadas: los gordos son los que hay que mirar.
+            ARCHIVOS="$(printf '%s\n' "$CRUDO" \
+              | awk -F'\t' '{ print ($1 + $2) "\t" $0 }' \
+              | sort -rn -k1,1 | cut -f2- \
+              | awk -F'\t' '
+                  NR <= 6 { printf "- %s  (+%s −%s)\n", $3, $1, $2 }
+                  END { if (NR > 6) printf "- … y %d archivo(s) más\n", NR - 6 }')"
+          else
+            echo "::notice::No se pudo listar los archivos del PR; la tarjeta sale sin esa sección."
+          fi
+
+          # jq --arg escapa comillas, saltos de línea y todo lo demás. Construir
+          # el JSON a mano con un heredoc se rompe con el primer título que
+          # lleve comillas.
+          jq -nc \
+            --arg header "$HEADER" \
+            --arg color  "$COLOR" \
+            --arg title  "${PR_TITLE:-(sin título)}" \
+            --arg repo   "$REPO" \
+            --arg author "$PR_AUTHOR" \
+            --arg ramas  "$RAMAS" \
+            --arg url    "$PR_URL" \
+            --arg resumen   "$RESUMEN" \
+            --arg cambios   "$CAMBIOS" \
+            --arg tipo      "$TIPO" \
+            --arg checklist "$CHECKLIST" \
+            --arg labels    "${LABELS:-}" \
+            --arg style     "$STYLE" \
+            --arg subtitulo "$SUBTITULO" \
+            --arg avatar    "${AVATAR:-}" \
+            --arg adds      "+${ADDITIONS}" \
+            --arg dels      "−${DELETIONS}" \
+            --arg files     "${FILES}" \
+            --arg tamano    "$TAMANO" \
+            --arg commits   "${COMMITS:-}" \
+            --arg revisores "${REVIEWERS:-}" \
+            --arg archivos  "$ARCHIVOS" \
+            '{
+              type: "message",
+              attachments: [{
+                contentType: "application/vnd.microsoft.card.adaptive",
+                contentUrl: null,
+                content: {
+                  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                  type: "AdaptiveCard",
+                  version: "1.4",
+                  msteams: { width: "Full" },
+                  body: ([
+                    # Banda teñida según el estado, a sangre completa: el color
+                    # dice qué pasó antes de que nadie lea una palabra.
+                    { type: "Container", style: $style, bleed: true, items: [
+                      { type: "ColumnSet", columns: ([
+                        (if $avatar == "" then empty else
+                          { type: "Column", width: "auto", items: [
+                            { type: "Image", url: $avatar, size: "Small",
+                              style: "Person", altText: $author }
+                          ] }
+                        end),
+                        { type: "Column", width: "stretch",
+                          verticalContentAlignment: "Center", items: [
+                          { type: "TextBlock", text: $header, weight: "Bolder",
+                            size: "Medium", color: $color, wrap: true,
+                            spacing: "None" },
+                          { type: "TextBlock", text: $subtitulo, size: "Small",
+                            isSubtle: true, wrap: true, spacing: "None" }
+                        ] }
+                      ]) }
+                    ] },
+
+                    { type: "TextBlock", text: $title, size: "Large",
+                      weight: "Bolder", wrap: true, spacing: "Medium" },
+
+                    # El resumen va suelto y no como fact: en un FactSet el valor
+                    # queda en una columna angosta y un párrafo se vuelve ilegible.
+                    (if $resumen == "" then empty else
+                      { type: "TextBlock", text: $resumen, wrap: true,
+                        spacing: "Small", isSubtle: true }
+                    end),
+
+                    # Los puntos de `## Changes`, como lista de verdad: Adaptive
+                    # Cards sí renderiza viñetas markdown, aunque no encabezados.
+                    (if $cambios == "" then empty else
+                      { type: "TextBlock", text: $cambios, wrap: true,
+                        spacing: "Small" }
+                    end),
+
+                    # El diff como tres cifras grandes en vez de una línea de
+                    # texto: es el dato que más se mira y el que menos se leía.
+                    { type: "ColumnSet", spacing: "Medium", columns: [
+                      { type: "Column", width: "stretch", items: [
+                        { type: "TextBlock", text: $adds, size: "ExtraLarge",
+                          weight: "Bolder", color: "good", spacing: "None",
+                          horizontalAlignment: "Center" },
+                        { type: "TextBlock", text: "añadidas", size: "Small",
+                          isSubtle: true, spacing: "None",
+                          horizontalAlignment: "Center" }
+                      ] },
+                      { type: "Column", width: "stretch", items: [
+                        { type: "TextBlock", text: $dels, size: "ExtraLarge",
+                          weight: "Bolder", color: "attention", spacing: "None",
+                          horizontalAlignment: "Center" },
+                        { type: "TextBlock", text: "borradas", size: "Small",
+                          isSubtle: true, spacing: "None",
+                          horizontalAlignment: "Center" }
+                      ] },
+                      { type: "Column", width: "stretch", items: [
+                        { type: "TextBlock", text: $files, size: "ExtraLarge",
+                          weight: "Bolder", spacing: "None",
+                          horizontalAlignment: "Center" },
+                        { type: "TextBlock", text: "archivos", size: "Small",
+                          isSubtle: true, spacing: "None",
+                          horizontalAlignment: "Center" }
+                      ] }
+                    ] },
+
+                    # Las filas vacías se descartan: un PR sin plantilla no debe
+                    # mostrar "Tipo:" en blanco.
+                    { type: "FactSet", spacing: "Medium", facts: ([
+                        { title: "Repositorio", value: $repo },
+                        { title: "Ramas",       value: $ramas },
+                        { title: "Tamaño",      value: $tamano },
+                        { title: "Commits",     value: $commits },
+                        { title: "Tipo",        value: $tipo },
+                        { title: "Checklist",   value: $checklist },
+                        { title: "Revisores",   value: $revisores },
+                        { title: "Etiquetas",   value: $labels }
+                      ] | map(select(.value != ""))) },
+
+                    # Qué se tocó, ordenado por peso. Plegado, porque en un PR
+                    # grande esta lista se come la tarjeta entera en el canal.
+                    (if $archivos == "" then empty else
+                      { type: "ActionSet", spacing: "Small", actions: [
+                        { type: "Action.ShowCard", title: "Ver archivos tocados",
+                          card: {
+                            type: "AdaptiveCard",
+                            body: [ { type: "TextBlock", text: $archivos, wrap: true } ]
+                          } }
+                      ] }
+                    end)
+                  ]),
+                  actions: [
+                    { type: "Action.OpenUrl", title: "Abrir PR",     url: $url },
+                    { type: "Action.OpenUrl", title: "Ver cambios",  url: ($url + "/files") },
+                    { type: "Action.OpenUrl", title: "Ver commits",  url: ($url + "/commits") }
+                  ]
+                }
+              }]
+            }' > /tmp/payload.json
+
+          # 3 intentos con backoff: los webhooks de Teams devuelven 429 y 5xx
+          # esporádicos. El body va por archivo para no exponerlo en la línea
+          # de comandos.
+          for attempt in 1 2 3; do
+            code="$(curl -sS -o /tmp/resp.txt -w '%{http_code}' \
+              -X POST -H 'Content-Type: application/json' \
+              --max-time 20 --data-binary @/tmp/payload.json "$WEBHOOK")" || code="000"
+
+            if [ "$code" -ge 200 ] 2>/dev/null && [ "$code" -lt 300 ] 2>/dev/null; then
+              echo "✅ Aviso enviado a Teams (HTTP $code)."
+              echo "✅ Aviso de PR enviado a Teams." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+
+            echo "::warning::Teams respondió HTTP $code (intento $attempt/3): $(head -c 300 /tmp/resp.txt 2>/dev/null)"
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 5))
+            fi
+          done
+
+          echo "::error::No se pudo avisar a Teams tras 3 intentos (último HTTP $code)."
+          echo "❌ No se pudo avisar a Teams (HTTP $code). El PR está abierto igual: $PR_URL" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
